@@ -1,0 +1,20 @@
+<nav class="topnav" aria-label="Разделы дашборда">
+  <a{% if current_nav == 'analytics' %} class="active" aria-current="page"{% endif %} href="{{ url_for('index') }}">Аналитика</a>
+  <a{% if current_nav == 'yclients' %} class="active" aria-current="page"{% endif %} href="{{ url_for('yclients_page') }}">YClients</a>
+  <a{% if current_nav == 'verification' %} class="active" aria-current="page"{% endif %} href="{{ url_for('verification_page') }}">Сверка данных</a>
+  <a{% if current_nav == 'funnel' %} class="active" aria-current="page"{% endif %} href="{{ url_for('funnel_page') }}">Сквозная аналитика</a>
+  <a{% if current_nav == 'calls' %} class="active" aria-current="page"{% endif %} href="{{ url_for('calls_page') }}">Телефония</a>
+  {% if show_recordings_demo %}
+  <a{% if current_nav == 'recordings' %} class="active" aria-current="page"{% endif %} href="{{ url_for('call_recordings_demo_page') }}">Тест записей</a>
+  {% endif %}
+  <details class="topnav-dropdown"{% if current_nav in ('expenses', 'budgets', 'plans') %} data-active="true"{% endif %}>
+    <summary class="topnav-dropdown-summary{% if current_nav in ('expenses', 'budgets', 'plans') %} active{% endif %}">
+      <span>Ввод данных</span><i aria-hidden="true">⌄</i>
+    </summary>
+    <div class="topnav-dropdown-menu">
+      <a{% if current_nav == 'expenses' %} class="active" aria-current="page"{% endif %} href="{{ url_for('expenses_page') }}">Расходы</a>
+      <a{% if current_nav == 'budgets' %} class="active" aria-current="page"{% endif %} href="{{ url_for('budgets_page') }}">Планирование бюджета</a>
+      <a{% if current_nav == 'plans' %} class="active" aria-current="page"{% endif %} href="{{ url_for('plans_page') }}">Ввод плана</a>
+    </div>
+  </details>
+</nav>

@@ -1,0 +1,5 @@
+PyMySQL>=1.1,<2
+cryptography>=44,<50
+requests>=2.32,<3
+Flask>=3.1,<4
+openpyxl>=3.1,<4

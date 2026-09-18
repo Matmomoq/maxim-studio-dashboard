@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Телефония · Управленческая аналитика</title>
+  <meta name="description" content="Звонки, время разговоров и записи сотрудников">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="calls-page" data-min-date="{{ min_date }}" data-today="{{ today }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand"><span><strong>Управленческая аналитика</strong><small>amoCRM · телефония</small></span></div>
+      {% set current_nav = 'calls' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Получаем свежие данные…</span></div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="calls-main">
+    <section class="filter-panel calls-heading">
+      <div>
+        <p class="section-kicker">Операционная эффективность</p>
+        <h1>Телефония и записи</h1>
+        <p>Сравнение нагрузки, времени разговоров и записей по сотрудникам.</p>
+      </div>
+      <div class="segmented calls-team" aria-label="Команда">
+        <button type="button" data-call-team="cc" class="active">Колл-центр</button>
+        <button type="button" data-call-team="admin">Администраторы</button>
+      </div>
+    </section>
+
+    <section class="filter-panel calls-filters" aria-labelledby="callsFiltersTitle">
+      <div class="filter-heading">
+        <div><p class="section-kicker">Период и сотрудники</p><h2 id="callsFiltersTitle">Фильтры</h2></div>
+        <button class="reset-button" id="resetCallFilters" type="button">Сбросить фильтры</button>
+      </div>
+      <div class="calls-filter-grid">
+        <label>Дата с<input id="callDateFrom" type="date" min="{{ min_date }}"></label>
+        <label>Дата по<input id="callDateTo" type="date" min="{{ min_date }}"></label>
+        <label>Город<select id="callCity"><option value="Все">Все города</option><option>Москва</option><option>СПБ</option></select></label>
+        <label>Сотрудник<select id="callUser"><option value="Все">Все сотрудники</option></select></label>
+      </div>
+      <div class="preset-row" aria-label="Быстрый выбор периода">
+        <span>Быстрый период</span>
+        <button type="button" data-call-preset="today">Сегодня</button>
+        <button type="button" data-call-preset="week">Неделя</button>
+        <button type="button" data-call-preset="month" class="active">Месяц</button>
+      </div>
+    </section>
+
+    <div class="error-banner" id="callsError" role="alert" hidden></div>
+    <div class="loading-line" id="callsLoading" aria-hidden="true"></div>
+
+    <section class="calls-kpi-grid" aria-label="Основные показатели">
+      <article><span>Всего звонков</span><strong id="callsTotal">—</strong><small id="callsSplit">Входящие / исходящие</small></article>
+      <article><span>Принято</span><strong id="callsAccepted">—</strong><small id="callsAcceptedShare">Доля принятых</small></article>
+      <article><span>Пропущено</span><strong id="callsMissed">—</strong><small>Включая недозвоны</small></article>
+      <article><span>Время разговоров</span><strong id="callsTalkTime">—</strong><small id="callsAverage">Среднее время</small></article>
+      <article class="accent"><span id="callsBookingLabel">Первичные записи</span><strong id="callsBookings">—</strong><small>Атрибуция до 7 дней</small></article>
+      <article class="accent"><span>Записей на 100 разговоров</span><strong id="callsConversion">—</strong><small>По принятым звонкам</small></article>
+    </section>
+
+    <section class="panel calls-table-panel" aria-labelledby="callsEmployeesTitle">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Команда</p><h2 id="callsEmployeesTitle">Результаты по сотрудникам</h2></div>
+        <span class="table-note" id="callsPeriodLabel">Выбранный период</span>
+      </div>
+      <div class="table-wrap">
+        <table class="expense-table calls-table">
+          <thead><tr><th>Сотрудник</th><th>Звонки</th><th>Входящие</th><th>Исходящие</th><th>Принято</th><th>Пропущено</th><th>Время</th><th>Среднее</th><th>Записи</th><th>На 100 разговоров</th></tr></thead>
+          <tbody id="callsEmployeesBody"></tbody>
+          <tfoot><tr><th>ИТОГО</th><th id="callsFootTotal">—</th><th id="callsFootIncoming">—</th><th id="callsFootOutgoing">—</th><th id="callsFootAccepted">—</th><th id="callsFootMissed">—</th><th id="callsFootTime">—</th><th id="callsFootAverage">—</th><th id="callsFootBookings">—</th><th id="callsFootConversion">—</th></tr></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel calls-dynamics" aria-labelledby="callsDynamicsTitle">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Динамика</p><h2 id="callsDynamicsTitle">Звонки и записи по времени</h2></div>
+        <div class="segmented calls-granularity" aria-label="Детализация графика">
+          <button type="button" data-call-granularity="day" class="active">Дни</button>
+          <button type="button" data-call-granularity="week">Недели</button>
+          <button type="button" data-call-granularity="month">Месяцы</button>
+        </div>
+      </div>
+      <div class="calls-chart-grid">
+        <article><h3>Принятые и пропущенные звонки</h3><div class="calls-bars" id="callsVolumeChart"></div><div class="calls-legend"><span class="accepted">Принято</span><span class="missed">Пропущено</span></div></article>
+        <article><h3 id="callsBookingsChartTitle">Первичные записи</h3><div class="calls-bars" id="callsBookingsChart"></div><div class="calls-legend"><span class="bookings">Записи</span></div></article>
+      </div>
+    </section>
+
+    <aside class="method-note calls-note">
+      <span class="method-icon">i</span>
+      <div><strong>Как запись связывается с сотрудником</strong><p id="callsMethodText">Если сотрудник сам изменил этап — запись относится к нему. Для автоматического перехода используется последний принятый звонок по сделке не более чем за 7 дней до записи.</p></div>
+    </aside>
+  </main>
+  <footer><span>Данные обновляются вместе с базой amoCRM</span><span>Сейчас показаны агрегированные показатели</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

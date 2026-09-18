@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Тест записей звонков · Управленческая аналитика</title>
+  <meta name="description" content="Пять тестовых записей звонков UIS по сделкам с причиной Противопоказание">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="recordings-demo-page">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand"><span><strong>Управленческая аналитика</strong><small>amoCRM · тест аудиозаписей</small></span></div>
+      {% set current_nav = 'recordings' %}
+      {% set show_recordings_demo = true %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status"><span class="status-dot"></span><span>Только localhost · без сохранения аудио</span></div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="recordings-demo-main">
+    <section class="recordings-hero">
+      <div>
+        <p class="section-kicker">Локальный прототип</p>
+        <h1>Записи звонков по противопоказаниям</h1>
+        <p>Пять самых продолжительных разговоров UIS, однозначно связанных с закрытыми сделками. Аудио запрашивается у amoCRM только при запуске плеера.</p>
+      </div>
+      <span class="recordings-scope" id="recordingsScope">UIS · Противопоказание</span>
+    </section>
+
+    <div class="error-banner" id="recordingsError" role="alert" hidden></div>
+    <div class="loading-line" id="recordingsLoading" aria-hidden="true"></div>
+
+    <section class="recordings-kpi-grid" aria-label="Параметры тестовой выборки">
+      <article><span>Показано в тесте</span><strong id="recordingsShown">—</strong><small>Записей звонков</small></article>
+      <article><span>Подходит всего</span><strong id="recordingsEligible">—</strong><small>UIS-звонков в базе</small></article>
+      <article><span>Связанных сделок</span><strong id="recordingsDeals">—</strong><small>Связь однозначная</small></article>
+      <article class="accent"><span>Аудио в нашей БД</span><strong>0</strong><small>Файлы не сохраняются</small></article>
+    </section>
+
+    <section class="panel recordings-table-panel" aria-labelledby="recordingsTableTitle">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Контрольная выборка</p><h2 id="recordingsTableTitle">Пять звонков UIS</h2></div>
+        <span class="table-note">Сортировка по длительности</span>
+      </div>
+      <div class="table-wrap recordings-table-wrap">
+        <table class="expense-table recordings-table">
+          <thead><tr><th>Сделка</th><th>Звонок</th><th>Сотрудник</th><th>Причина закрытия</th><th>Провайдер</th><th>Длительность</th><th>Запись</th></tr></thead>
+          <tbody id="recordingsRows"><tr><td colspan="7" class="registry-empty">Получаем тестовую выборку…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="method-note recordings-note">
+      <span class="method-icon">i</span>
+      <div><strong>Как сформирована выборка</strong><p>Закрытая сделка с причиной «Противопоказание» → однозначно связанный состоявшийся звонок → провайдер UIS. Прямая ссылка на запись не передаётся в браузер: аудио проходит через защищённый маршрут локального приложения.</p></div>
+    </aside>
+  </main>
+  <footer><span>Тестовый режим: 5 звонков</span><span>База и файлы аудио не изменяются</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

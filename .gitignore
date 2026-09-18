@@ -1,0 +1,25 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+config.ini
+*.pem
+*.key
+*.p12
+*.pfx
+# Generated state and customer data
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.sqlite3*
+logs/
+backups/
+outputs/
+*.log
+*.csv
+*.xlsx
+*.zip
+*.tar.gz
+.DS_Store
+._*

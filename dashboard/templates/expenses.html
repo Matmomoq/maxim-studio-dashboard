@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Расходы на маркетинг · amoCRM</title>
+  <meta name="description" content="История тарифов и ручной ввод расходов на рекламные источники">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="expenses-page" data-min-date="{{ min_date }}" data-today="{{ today }}" data-csrf-token="{{ expense_csrf }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand">
+        <span><strong>Управленческая аналитика</strong><small>amoCRM · лиды и записи</small></span>
+      </div>
+      {% set current_nav = 'expenses' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status" id="syncStatus">
+        <span class="status-dot"></span>
+        <span>Получаем свежие данные…</span>
+      </div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="expenses-main">
+    <section class="filter-panel expense-heading" aria-labelledby="expensesTitle">
+      <div>
+        <p class="section-kicker">Исходные расходы</p>
+        <h1 id="expensesTitle">Расходы на маркетинг</h1>
+        <p>Здесь хранятся тарифы РИС, РИС_xs, FL / Флоктори, Сайт Xsize и SMM_xs, а также фактические расходы VK и Яндекс.Карт. Старые значения не перезаписываются.</p>
+      </div>
+      <label class="expense-month">Рабочий месяц
+        <input id="expenseMonth" type="month" min="2026-07">
+      </label>
+    </section>
+
+    <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+    <div class="success-banner" id="successBanner" role="status" hidden></div>
+    <div class="loading-line" id="loadingLine" aria-hidden="true"></div>
+
+    <section class="panel expense-section" aria-labelledby="ratesTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Цена одной заявки</p>
+          <h2 id="ratesTitle">Тарифы источников с фиксированной ценой лида</h2>
+        </div>
+        <span class="metric-badge">Одинаковые для всех филиалов</span>
+      </div>
+
+      <div class="rate-card-grid" id="rateCards"></div>
+
+      <form class="expense-form rate-form" id="rateForm">
+        <div class="expense-form-heading">
+          <div><strong>Добавить новый тариф</strong><span>Предыдущий тариф закроется днём ранее</span></div>
+        </div>
+        <div class="expense-form-grid rate-form-grid">
+          <label>Источник
+            <select name="source" required>
+              <option value="РИС">РИС</option>
+              <option value="РИС_xs">РИС_xs</option>
+              <option value="Флоктори">FL / Флоктори</option>
+              <option value="Сайт Xsize">Сайт Xsize</option>
+              <option value="SMM_xs">SMM_xs</option>
+            </select>
+          </label>
+          <label>Направление
+            <select name="direction" required>
+              <option value="Массаж">Массаж</option>
+              <option value="Лазер">Лазер</option>
+            </select>
+          </label>
+          <label>Цена лида, ₽
+            <input name="cost_per_lead" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+          </label>
+          <label>Действует с
+            <input name="valid_from" type="date" min="{{ min_date }}" required>
+          </label>
+          <label class="expense-comment">Комментарий
+            <input name="comment" maxlength="1000" placeholder="Например: новый тариф по договору">
+          </label>
+          <button class="primary-action" type="submit">Сохранить тариф</button>
+        </div>
+      </form>
+
+      <details class="expense-history">
+        <summary>Показать историю тарифов</summary>
+        <div class="table-wrap">
+          <table class="expense-table rate-history-table">
+            <thead><tr><th>Источник</th><th>Направление</th><th>Цена лида</th><th>Действует с</th><th>Действует по</th><th>Комментарий</th></tr></thead>
+            <tbody id="rateHistoryBody"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel expense-section" aria-labelledby="periodExpensesTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Фактические платежи</p>
+          <h2 id="periodExpensesTitle">VK и Яндекс.Карты за период</h2>
+        </div>
+        <span class="table-note" id="selectedPeriodLabel">Расходы в списке за выбранный месяц</span>
+      </div>
+
+      <div class="expense-rule-grid">
+        <div><strong>VK</strong><span>Отдельно по филиалу и направлению, за любой период вплоть до одного дня</span></div>
+        <div><strong>Яндекс.Карты</strong><span>Одна сумма на всю сеть и все направления за выбранные даты</span></div>
+      </div>
+
+      <form class="expense-form" id="periodExpenseForm">
+        <div class="expense-form-grid period-date-grid">
+          <label>Расход с
+            <input name="period_from" id="periodFrom" type="date" min="{{ min_date }}" required>
+          </label>
+          <label>Расход по
+            <input name="period_to" id="periodTo" type="date" min="{{ min_date }}" required>
+          </label>
+          <label>Расход, ₽
+            <input name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+          </label>
+        </div>
+        <div class="expense-form-grid period-scope-grid">
+          <label>Источник
+            <select name="source" id="periodSource" required>
+              <option value="VK">VK</option>
+              <option value="Яндекс.Карты">Яндекс.Карты</option>
+            </select>
+          </label>
+          <label class="vk-scope">Филиал
+            <select name="branch" id="periodBranch" required>
+              {% for branch in expense_branches %}<option value="{{ branch }}">{{ branch }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="vk-scope">Направление
+            <select name="direction" id="periodDirection" required>
+              {% for direction in expense_directions %}<option value="{{ direction }}">{{ direction }}</option>{% endfor %}
+            </select>
+          </label>
+          <label>Состояние
+            <select name="status">
+              <option value="draft">Черновик</option>
+              <option value="confirmed">Подтверждено</option>
+            </select>
+          </label>
+        </div>
+        <div class="expense-form-footer">
+          <div class="expense-preview" id="expensePreview">
+            <span>Сначала заполните сумму и проверьте расчёт</span>
+          </div>
+          <div class="expense-form-actions">
+            <button class="secondary-action" id="previewExpense" type="button">Проверить расчёт</button>
+            <button class="primary-action" type="submit">Сохранить расход</button>
+          </div>
+        </div>
+      </form>
+
+      <div class="expense-list-heading">
+        <div><strong>Расходы выбранного месяца</strong><span id="expenseListCount">0 записей</span></div>
+      </div>
+      <div class="expense-list-filters" aria-label="Фильтры списка расходов">
+        <label>Филиал
+          <select id="expenseListBranch">
+            <option value="">Все филиалы</option>
+          </select>
+        </label>
+        <label>Направление
+          <select id="expenseListDirection">
+            <option value="">Все направления</option>
+          </select>
+        </label>
+        <label>Дата с
+          <input id="expenseListDateFrom" type="date" min="{{ min_date }}">
+        </label>
+        <label>Дата по
+          <input id="expenseListDateTo" type="date" min="{{ min_date }}">
+        </label>
+        <button class="secondary-action expense-list-reset" id="expenseListReset" type="button">Сбросить</button>
+      </div>
+      <div class="table-wrap expense-list-wrap">
+        <table class="expense-table period-expense-table">
+          <thead><tr><th>Источник</th><th>Охват</th><th>Период</th><th>Расход</th><th>Лиды по тегам</th><th>Цена лида</th><th>Состояние</th><th>Действия</th></tr></thead>
+          <tbody id="periodExpensesBody"></tbody>
+        </table>
+      </div>
+
+      <details class="marketing-reconciliation-tray" id="marketingReconciliationTray">
+        <summary>
+          <span><strong>Сверка рекламных лидов по тегам</strong><small>Для маркетолога: поле филиала записи не используется</small></span>
+          <span id="reconciliationSummary">Открыть таблицу</span>
+        </summary>
+        <div class="marketing-reconciliation-content">
+          <div class="reconciliation-note">
+            Источник, филиал и направление определяются только по тегам сделки. Колонка «Разница» сравнивает очищенные лиды по тегам с управленческой логикой.
+          </div>
+          <div class="expense-list-filters reconciliation-filters" aria-label="Фильтры сверки рекламных лидов">
+            <label>Дата с
+              <input id="reconciliationDateFrom" type="date" min="{{ min_date }}">
+            </label>
+            <label>Дата по
+              <input id="reconciliationDateTo" type="date" min="{{ min_date }}">
+            </label>
+            <label>Источник по тегу
+              <select id="reconciliationSource"><option value="">Все источники</option></select>
+            </label>
+            <label>Филиал по тегу
+              <select id="reconciliationBranch"><option value="">Все филиалы</option></select>
+            </label>
+            <label>Направление по тегу
+              <select id="reconciliationDirection"><option value="">Все направления</option></select>
+            </label>
+            <button class="secondary-action" id="loadReconciliation" type="button">Показать</button>
+          </div>
+          <div class="reconciliation-actions">
+            <span id="reconciliationCount">Данные ещё не загружены</span>
+            <a class="primary-action reconciliation-export" id="reconciliationExport" href="#">Скачать CSV</a>
+          </div>
+          <div class="table-wrap reconciliation-table-wrap">
+            <table class="expense-table reconciliation-table">
+              <thead><tr><th>Источник</th><th>Филиал по тегу</th><th>Направление</th><th>Всего по тегам</th><th>Исключено</th><th>В аналитике</th><th>Управленческая логика</th><th>Разница</th><th>Сделки</th></tr></thead>
+              <tbody id="reconciliationRows"><tr><td colspan="9" class="registry-empty">Откройте сверку, чтобы получить данные</td></tr></tbody>
+              <tfoot id="reconciliationTotals"></tfoot>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <aside class="method-note expense-note">
+      <span class="method-icon">i</span>
+      <div><strong>Как расходы попадут в аналитику</strong><p>Расход учитывается только между датами «Расход с» и «Расход по». При проверке количества лидов источник, филиал и направление определяются строго по рекламным тегам. Исключённые сделки показываются отдельно и не участвуют в расчёте цены аналитического лида. Отменённые расходы не участвуют в расчётах.</p></div>
+    </aside>
+  </main>
+
+  <footer><span>Все изменения сохраняются в журнале</span><span>Исторические тарифы не перезаписываются</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

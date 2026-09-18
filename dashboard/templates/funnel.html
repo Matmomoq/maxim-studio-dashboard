@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Сквозная аналитика · amoCRM и Yclients</title>
+  <meta name="description" content="Путь от рекламного источника до визита, продажи, выручки и ROI">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="funnel-page" data-min-date="{{ min_date }}" data-today="{{ today }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand"><span><strong>Управленческая аналитика</strong><small>amoCRM · Yclients · деньги</small></span></div>
+      {% set current_nav = 'funnel' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Получаем свежие данные…</span></div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="funnel-main">
+    <section class="funnel-intro">
+      <div>
+        <p class="section-kicker">От рекламы до денег</p>
+        <h1>Сквозная аналитика</h1>
+        <p>Показывает, какие источники приводят не только лидов и записи, но и состоявшиеся визиты, оплаты и выручку.</p>
+      </div>
+      <div class="funnel-definition">
+        <span>Период отчёта</span>
+        <strong>по дате создания лида</strong>
+        <small>Результаты и оплаты считаются по этим лидам на текущий момент</small>
+      </div>
+    </section>
+
+    <section class="filter-panel funnel-filters" aria-labelledby="funnelFiltersTitle">
+      <div class="filter-heading">
+        <div><p class="section-kicker">Параметры отчёта</p><h2 id="funnelFiltersTitle">Фильтры</h2></div>
+        <button class="reset-button" id="resetFilters" type="button">Сбросить фильтры</button>
+      </div>
+      <div class="filter-grid">
+        <label>Дата с<input id="dateFrom" type="date" min="{{ min_date }}"></label>
+        <label>Дата по<input id="dateTo" type="date" min="{{ min_date }}"></label>
+        {% for key, label, all_label in [('branch','Филиал','Все филиалы'),('source','Источник','Все источники'),('direction','Направление','Все направления'),('offer','Оффер','Все офферы')] %}
+        <div class="filter-control">
+          <span class="filter-label">{{ label }}</span>
+          <div class="multi-select" data-multi-filter="{{ key }}" data-all-label="{{ all_label }}">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>{{ all_label }}</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>{{ all_label }}</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="preset-row" aria-label="Быстрый выбор периода">
+        <span>Быстрый период</span>
+        <button type="button" data-preset="today">Сегодня</button>
+        <button type="button" data-preset="week">Неделя</button>
+        <button type="button" data-preset="month" class="active">Месяц</button>
+        <button type="button" data-preset="quarter">Квартал</button>
+        <label class="draft-toggle funnel-drafts"><input id="includeDrafts" type="checkbox"><span>Учитывать черновики расходов</span></label>
+      </div>
+    </section>
+
+    <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+    <div class="loading-line" id="loadingLine" aria-hidden="true"></div>
+
+    <section class="funnel-coverage" id="coveragePanel">
+      <span class="coverage-dot"></span>
+      <div><strong id="coverageTitle">Проверяем связь amoCRM и Yclients…</strong><small id="coverageText"></small></div>
+    </section>
+
+    <section class="funnel-kpi-grid" aria-label="Главные показатели сквозной аналитики">
+      <article><span>Расходы</span><strong id="kpiSpend">—</strong><small>Рекламный бюджет</small></article>
+      <article class="revenue"><span>Выручка</span><strong id="kpiRevenue">—</strong><small>Фактически полученные оплаты</small></article>
+      <article class="roi"><span>ROI без себестоимости</span><strong id="kpiRoi">—</strong><small>(Выручка − расходы) ÷ расходы</small></article>
+      <article><span>Средний чек</span><strong id="kpiAverageCheck">—</strong><small>Выручка ÷ документы продажи</small></article>
+      <article><span>Лиды</span><strong id="kpiLeads">—</strong><small>Созданы в выбранный период</small></article>
+      <article><span>Записи</span><strong id="kpiBookings">—</strong><small>Дошли до этапа записи</small></article>
+      <article><span>Состоявшиеся визиты</span><strong id="kpiVisits">—</strong><small>По данным Yclients</small></article>
+      <article><span>Клиенты с оплатой</span><strong id="kpiPaying">—</strong><small>Есть связанная финансовая операция</small></article>
+      <article><span>Стоимость лида</span><strong id="kpiCostPerLead">—</strong><small>По лидам с заполненными расходами</small></article>
+      <article><span>Стоимость записи</span><strong id="kpiCostPerBooking">—</strong><small>Расходы ÷ записи в покрытом срезе</small></article>
+      <article><span>Стоимость клиента</span><strong id="kpiCostPerVisit">—</strong><small>Расходы ÷ состоявшиеся визиты</small></article>
+    </section>
+
+    <section class="panel funnel-path-panel">
+      <div class="panel-heading"><div><p class="section-kicker">Воронка</p><h2>Путь от заявки до оплаты</h2></div><span class="table-note">Процент считается от всех лидов</span></div>
+      <div class="funnel-path" id="funnelPath"></div>
+    </section>
+
+    <section class="funnel-split-grid">
+      <article class="panel">
+        <div class="panel-heading"><div><p class="section-kicker">Структура денег</p><h2>Из чего складывается выручка</h2></div></div>
+        <div class="revenue-mix" id="revenueMix"></div>
+        <p class="funnel-footnote">«Первые» и «повторные» абонементы определяются по доступной истории покупок клиента. После полной дозагрузки истории показатель станет окончательным.</p>
+      </article>
+      <article class="panel">
+        <div class="panel-heading"><div><p class="section-kicker">Экономика</p><h2>Как читать ROI</h2></div></div>
+        <div class="roi-explainer">
+          <div><span>Выручка − рекламные расходы</span><strong id="roiProfit">—</strong></div>
+          <i>÷</i>
+          <div><span>Рекламные расходы</span><strong id="roiSpend">—</strong></div>
+          <b>=</b>
+          <div class="result"><span>ROI</span><strong id="roiResult">—</strong></div>
+        </div>
+        <p class="funnel-footnote">Положительный ROI означает, что выручка превысила рекламные расходы; отрицательный — что реклама ещё не окупилась. В расчёт попадают только лиды с заполненными расходами. Себестоимость пока не учитывается.</p>
+      </article>
+    </section>
+
+    <section class="panel funnel-table-panel">
+      <div class="panel-heading economics-panel-heading">
+        <div><p class="section-kicker">Сравнение</p><h2>Какие срезы приносят деньги</h2></div>
+        <div class="group-switch" aria-label="Группировка таблицы">
+          <button type="button" data-funnel-group="source" class="active">По источникам</button>
+          <button type="button" data-funnel-group="branch">По филиалам</button>
+          <button type="button" data-funnel-group="direction">По направлениям</button>
+        </div>
+      </div>
+      <p class="economics-note" id="funnelTableNote">Раскройте источник, чтобы увидеть его результат по филиалам.</p>
+      <div class="table-wrap">
+        <table class="funnel-table">
+          <thead><tr>
+            <th><button data-funnel-sort="label"><span id="funnelGroupLabel">Источник</span> <i>↕</i></button></th>
+            <th><button data-funnel-sort="spend">Расходы <i>↕</i></button></th>
+            <th><button data-funnel-sort="expense_coverage">Покрытие расходов <i>↕</i></button></th>
+            <th><button data-funnel-sort="leads">Лиды <i>↕</i></button></th>
+            <th><button data-funnel-sort="cost_per_lead">Цена лида <i>↕</i></button></th>
+            <th><button data-funnel-sort="bookings">Записи <i>↕</i></button></th>
+            <th><button data-funnel-sort="cost_per_booking">Цена записи <i>↕</i></button></th>
+            <th><button data-funnel-sort="visits">Визиты <i>↕</i></button></th>
+            <th><button data-funnel-sort="cost_per_visit">Цена клиента <i>↕</i></button></th>
+            <th><button data-funnel-sort="paying_leads">С оплатой <i>↕</i></button></th>
+            <th><button data-funnel-sort="revenue">Выручка <i>↓</i></button></th>
+            <th><button data-funnel-sort="average_check">Средний чек <i>↕</i></button></th>
+            <th><button data-funnel-sort="roi">ROI <i>↕</i></button></th>
+          </tr></thead>
+          <tbody id="funnelRows"></tbody>
+          <tfoot id="funnelTotal"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="info-note funnel-method-note">
+      <span>i</span>
+      <div><strong>Что учитывается сейчас</strong><p id="methodText">Загружаем методику расчёта…</p></div>
+    </section>
+  </main>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

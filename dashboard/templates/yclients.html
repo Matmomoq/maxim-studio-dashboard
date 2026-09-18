@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Витрина Yclients · Управленческая аналитика</title>
+  <meta name="description" content="Контроль визитов, продаж и фактической выручки по данным Yclients">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="yclients-page" data-min-date="{{ min_date }}" data-today="{{ today }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand"><span><strong>Управленческая аналитика</strong><small>Yclients · визиты и деньги</small></span></div>
+      {% set current_nav = 'yclients' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Получаем свежие данные…</span></div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="yclients-main">
+    <section class="yclients-intro">
+      <div>
+        <p class="section-kicker">Контрольная витрина</p>
+        <h1>Yclients: визиты и выручка</h1>
+        <p>Показывает операционные результаты без привязки к amoCRM. Здесь сначала сверяем базовые цифры, а затем используем их в сквозной аналитике.</p>
+      </div>
+      <div class="yclients-definition">
+        <span>Версия MVP</span>
+        <strong>дебиторка вынесена отдельно</strong>
+        <small>Возвраты пока не уменьшают фактическую выручку</small>
+      </div>
+    </section>
+
+    <nav class="yclients-view-tabs" aria-label="Витрины YCLIENTS">
+      <a class="active" aria-current="page" href="{{ url_for('yclients_page') }}">Операционная аналитика</a>
+      <a href="{{ url_for('yclients_plan_fact_page') }}">План–факт</a>
+    </nav>
+
+    <section class="filter-panel yclients-filters" aria-labelledby="yclientsFiltersTitle">
+      <div class="filter-heading">
+        <div><p class="section-kicker">Параметры отчёта</p><h2 id="yclientsFiltersTitle">Фильтры</h2></div>
+        <button class="reset-button" id="resetFilters" type="button">Сбросить фильтры</button>
+      </div>
+      <div class="filter-grid yclients-filter-grid">
+        <label>Дата с<input id="dateFrom" type="date" min="{{ min_date }}"></label>
+        <label>Дата по<input id="dateTo" type="date" min="{{ min_date }}"></label>
+        {% for key, label, all_label in [('branch','Филиал','Все филиалы'),('direction','Направление','Все направления')] %}
+        <div class="filter-control">
+          <span class="filter-label">{{ label }}</span>
+          <div class="multi-select" data-multi-filter="{{ key }}" data-all-label="{{ all_label }}">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>{{ all_label }}</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>{{ all_label }}</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="preset-row" aria-label="Быстрый выбор периода">
+        <span>Быстрый период</span>
+        <button type="button" data-preset="today">Сегодня</button>
+        <button type="button" data-preset="week">Неделя</button>
+        <button type="button" data-preset="month" class="active">Месяц</button>
+        <button type="button" data-preset="quarter">Квартал</button>
+      </div>
+    </section>
+
+    <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+    <div class="loading-line" id="loadingLine" aria-hidden="true"></div>
+
+    <section class="yclients-kpi-grid" aria-label="Главные показатели Yclients">
+      <article class="revenue"><span>Фактическая выручка</span><strong id="kpiRevenue">—</strong><small>Положительные оплаты за период</small></article>
+      <article><span>Состоявшиеся визиты</span><strong id="kpiVisits">—</strong><small>По дате визита</small></article>
+      <article><span>Первичные визиты</span><strong id="kpiFirstVisits">—</strong><small>Синий и бирюзовый цвет записи</small></article>
+      <article><span>Разовые визиты</span><strong id="kpiOneOffVisits">—</strong><small>Зелёный цвет записи</small></article>
+      <article><span>Повторные визиты</span><strong id="kpiRepeatVisits">—</strong><small>Остальные цвета и «По умолчанию»</small></article>
+      <article><span>Визиты по абонементу</span><strong id="kpiSubscriptionVisits">—</strong><small>Было списание с абонемента</small></article>
+      <article><span>Продажи абонементов</span><strong id="kpiSubscriptions">—</strong><small id="kpiSubscriptionSplit">Первичные и повторные</small></article>
+      <article><span>Выручка абонементов</span><strong id="kpiSubscriptionRevenue">—</strong><small>Фактически полученные оплаты</small></article>
+      <article><span>Выручка услуг</span><strong id="kpiServiceRevenue">—</strong><small>Все оплаты услуг, включая доплаты при визитах по абонементу</small></article>
+    </section>
+
+    <section class="panel yclients-debt-panel" aria-labelledby="installmentDebtTitle">
+      <div class="panel-heading yclients-debt-heading">
+        <div>
+          <p class="section-kicker">Контроль рассрочек</p>
+          <h2 id="installmentDebtTitle">Сверка дебиторки</h2>
+        </div>
+        <span class="metric-badge">По методике заказчика</span>
+      </div>
+      <p class="economics-note">
+        Считаем только состоявшиеся и не удалённые визиты с услугами «Взнос по рассрочке (массаж)»
+        и «Взнос по рассрочке (лазер)». Период относится к дате визита.
+      </p>
+      <div class="yclients-debt-summary" id="installmentDebtSummary"></div>
+      <details class="yclients-debt-tray" id="installmentDebtTray">
+        <summary>
+          <strong>
+            <span class="yclients-debt-tray-show">Показать записи и связанные оплаты</span>
+            <span class="yclients-debt-tray-hide">Скрыть записи и связанные оплаты</span>
+          </strong>
+          <span id="installmentDebtCount">Загружаем строки…</span>
+        </summary>
+        <div class="yclients-debt-tray-content">
+          <div class="table-wrap yclients-debt-table-wrap">
+            <table class="yclients-debt-table">
+              <thead><tr>
+                <th>ID записи</th><th>Дата визита</th><th>Филиал</th><th>Направление</th>
+                <th>Услуга</th><th>Статус записи</th><th>ID клиента</th><th>Стоимость</th><th>Оплачено</th>
+                <th>Разница</th><th>Платежей</th><th>Последняя оплата</th><th>Статус оплаты</th>
+              </tr></thead>
+              <tbody id="installmentDebtRows"></tbody>
+              <tfoot id="installmentDebtTotal"></tfoot>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel yclients-breakdown-panel">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Филиал × направление</p><h2>Операционный результат</h2></div>
+        <span class="metric-badge" id="qualityBadge">Проверяем классификацию…</span>
+      </div>
+      <div class="table-wrap">
+        <table class="yclients-breakdown-table">
+          <thead><tr>
+            <th>Филиал</th><th>Направление</th><th>Визиты</th><th>Первичные</th><th>Разовые</th>
+            <th>Повторные</th><th>Визиты по абонементу</th><th>Продано абонементов</th>
+            <th>Выручка</th><th>Выручка абонементов</th>
+          </tr></thead>
+          <tbody id="breakdownRows"></tbody>
+          <tfoot id="breakdownTotal"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel yclients-color-panel" aria-labelledby="colorReconciliationTitle">
+      <details class="yclients-color-tray" id="colorReconciliationTray">
+        <summary>
+          <div>
+            <p class="section-kicker">Контроль классификации</p>
+            <h2 id="colorReconciliationTitle">Сверка типов визитов по цветам</h2>
+          </div>
+          <span id="colorReconciliationStatus">Откройте, чтобы сверить записи</span>
+        </summary>
+        <div class="yclients-color-content">
+          <p class="economics-note">
+            Синий и бирюзовый — первичный визит, зелёный — разовый, остальные цвета и
+            «По умолчанию» — повторный. В сверку входят те же состоявшиеся визиты, что и в KPI выше.
+          </p>
+
+          <div class="yclients-color-kpi" id="colorReconciliationKpi">
+            <article><span>Все визиты</span><strong id="colorTotalVisits">—</strong></article>
+            <article><span>Первичные</span><strong id="colorFirstVisits">—</strong></article>
+            <article><span>Разовые</span><strong id="colorOneOffVisits">—</strong></article>
+            <article><span>Повторные</span><strong id="colorRepeatVisits">—</strong></article>
+          </div>
+          <div class="yclients-color-balance" id="colorBalanceStatus" data-status="loading">
+            Проверяем контрольное равенство…
+          </div>
+
+          <div class="table-wrap yclients-color-summary-wrap">
+            <table class="yclients-color-summary-table">
+              <thead><tr>
+                <th>Цвет Yclients</th><th>HEX</th><th>Рассчитанный тип</th><th>Визитов</th><th>Доля</th>
+              </tr></thead>
+              <tbody id="colorSummaryRows"></tbody>
+            </table>
+          </div>
+
+          <div class="yclients-color-filters">
+            <label>Тип визита
+              <select id="colorVisitTypeFilter">
+                <option value="">Все типы</option>
+                <option value="first">Первичные</option>
+                <option value="one_off">Разовые</option>
+                <option value="repeat">Повторные</option>
+              </select>
+            </label>
+            <label>Цвет
+              <select id="recordColorFilter"><option value="">Все цвета</option></select>
+            </label>
+            <label>Поиск
+              <input id="colorRecordSearch" type="search" placeholder="ID записи, клиента или услуга">
+            </label>
+            <button class="export-button" id="exportColorCsv" type="button">Скачать CSV</button>
+          </div>
+
+          <div class="yclients-color-registry-heading">
+            <div><p class="section-kicker">Исходные строки</p><h3>Записи, вошедшие в расчёт</h3></div>
+            <span id="colorRegistryCount">Найдено: —</span>
+          </div>
+          <div class="table-wrap">
+            <table class="yclients-color-registry-table">
+              <thead><tr>
+                <th>ID записи</th><th>Дата визита</th><th>Филиал</th><th>Направление</th>
+                <th>Цвет Yclients</th><th>Рассчитанный тип</th><th>ID клиента</th>
+                <th>Списание абонемента</th><th>Услуги</th>
+              </tr></thead>
+              <tbody id="colorRegistryRows"></tbody>
+            </table>
+          </div>
+          <div class="registry-pagination yclients-color-pagination">
+            <label>Строк на странице
+              <select id="colorPerPage"><option value="50">50</option><option value="100">100</option></select>
+            </label>
+            <div>
+              <button id="colorPreviousPage" type="button">Назад</button>
+              <span id="colorPageStatus">Страница 1 из 1</span>
+              <button id="colorNextPage" type="button">Вперёд</button>
+            </div>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel yclients-control-panel">
+      <div class="panel-heading yclients-control-heading">
+        <div><p class="section-kicker">Расшифровка</p><h2>Проверка исходных строк</h2></div>
+        <div class="group-switch" role="tablist" aria-label="Тип контрольных строк">
+          <button type="button" class="active" data-yc-view="visits" role="tab" aria-selected="true">Визиты</button>
+          <button type="button" data-yc-view="transactions" role="tab" aria-selected="false">Оплаты</button>
+        </div>
+      </div>
+      <p class="economics-note" id="controlNote">Последние 100 состоявшихся визитов по выбранным фильтрам.</p>
+      <div class="table-wrap">
+        <table class="yclients-control-table">
+          <thead id="controlHead"></thead>
+          <tbody id="controlRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="info-note yclients-method-note">
+      <span>i</span>
+      <div><strong>Как считается витрина</strong><p id="methodText">Загружаем правила расчёта…</p></div>
+    </section>
+  </main>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

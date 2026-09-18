@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Сверка данных · amoCRM</title>
+  <meta name="description" content="Реестр созданных заявок и записей из amoCRM">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body data-min-date="{{ min_date }}" data-today="{{ today }}" class="verification-page">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand">
+        <span><strong>Управленческая аналитика</strong><small>amoCRM · лиды и записи</small></span>
+      </div>
+      {% set current_nav = 'verification' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-cluster">
+        <div class="sync-status" id="syncStatus">
+          <span class="status-dot"></span>
+          <span>Получаем свежие данные…</span>
+        </div>
+        <div class="exclusion-info">
+          <button type="button" aria-label="Какие сделки исключены из расчёта" aria-describedby="exclusionTooltip">i</button>
+          <div class="exclusion-tooltip" id="exclusionTooltip" role="tooltip">
+            <strong>Не учитываются в расчёте</strong>
+            <span>Закрытые сделки с причинами: «Другой город», «Дубль», «Спам / не лид» и «Тест».</span>
+          </div>
+        </div>
+      </div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="verification-main">
+    <section class="filter-panel verification-filters" aria-labelledby="verificationTitle">
+      <div class="filter-heading">
+        <div>
+          <p class="section-kicker">Проверка исходных данных</p>
+          <h1 id="verificationTitle">Сверка заявок и записей</h1>
+          <p class="verification-intro">Каждая строка — отдельная сделка, которая участвует в показателях дашборда.</p>
+        </div>
+        <button class="reset-button" id="resetFilters" type="button">Сбросить фильтры</button>
+      </div>
+
+      <div class="verification-filter-grid">
+        <label>Создана с
+          <input id="dateFrom" type="date" min="{{ min_date }}">
+        </label>
+        <label>Создана по
+          <input id="dateTo" type="date" min="{{ min_date }}">
+        </label>
+        <label class="booking-date-filter" hidden>Записана с
+          <input id="bookingDateFrom" type="date" min="{{ min_date }}">
+        </label>
+        <label class="booking-date-filter" hidden>Записана по
+          <input id="bookingDateTo" type="date" min="{{ min_date }}">
+        </label>
+        <div class="filter-control">
+          <span class="filter-label">Филиал</span>
+          <div class="multi-select" data-multi-filter="branch" data-all-label="Все филиалы">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все филиалы</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все филиалы</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-control">
+          <span class="filter-label">Источник</span>
+          <div class="multi-select" data-multi-filter="source" data-all-label="Все источники">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все источники</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все источники</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preset-row" aria-label="Быстрый выбор периода создания">
+        <span>Период создания</span>
+        <button type="button" data-preset="today">Сегодня</button>
+        <button type="button" data-preset="week">Неделя</button>
+        <button type="button" data-preset="month" class="active">Месяц</button>
+        <button type="button" data-preset="quarter">Квартал</button>
+      </div>
+    </section>
+
+    <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+    <div class="loading-line" id="loadingLine" aria-hidden="true"></div>
+
+    <section class="panel verification-panel" aria-labelledby="registryTitle">
+      <div class="registry-toolbar">
+        <div class="registry-tabs" role="tablist" aria-label="Тип реестра">
+          <button class="active" type="button" role="tab" aria-selected="true" data-view="leads">
+            Созданные заявки <span id="leadsCount">—</span>
+          </button>
+          <button type="button" role="tab" aria-selected="false" data-view="bookings">
+            Записи <span id="bookingsCount">—</span>
+          </button>
+        </div>
+        <div class="registry-actions">
+          <label class="registry-search">
+            <span class="visually-hidden">Поиск</span>
+            <input id="registrySearch" type="search" placeholder="ID, телефон, название или тег">
+          </label>
+          <button class="export-button" id="exportCsv" type="button">Скачать CSV</button>
+        </div>
+      </div>
+
+      <div class="registry-summary">
+        <div>
+          <p class="section-kicker" id="registryKicker">Созданные заявки</p>
+          <h2 id="registryTitle">Сделки, созданные за выбранный период</h2>
+        </div>
+        <span id="visibleCount">Найдено: —</span>
+      </div>
+
+      <div class="table-wrap registry-table-wrap">
+        <table class="registry-table">
+          <thead>
+            <tr>
+              <th><button data-registry-sort="lead_id">ID сделки <span>↕</span></button></th>
+              <th><button data-registry-sort="client_phone">Телефон клиента <span>↕</span></button></th>
+              <th><button data-registry-sort="branch">Филиал <span>↕</span></button></th>
+              <th><button data-registry-sort="source">Источник <span>↕</span></button></th>
+              <th><button data-registry-sort="created_at">Дата создания <span>↓</span></button></th>
+              <th class="booking-column" hidden><button data-registry-sort="booking_date">Дата записи <span>↕</span></button></th>
+              <th><button data-registry-sort="status">Статус воронки <span>↕</span></button></th>
+              <th><button data-registry-sort="lead_name">Название сделки <span>↕</span></button></th>
+              <th><button data-registry-sort="tags">Теги <span>↕</span></button></th>
+            </tr>
+          </thead>
+          <tbody id="registryBody"></tbody>
+        </table>
+      </div>
+
+      <div class="registry-pagination">
+        <label>Строк на странице
+          <select id="perPage">
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
+        <div>
+          <button id="previousPage" type="button">Назад</button>
+          <span id="pageStatus">Страница 1 из 1</span>
+          <button id="nextPage" type="button">Вперёд</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="method-note verification-note">
+      <span class="method-icon">i</span>
+      <div><strong>Что означает «Дата записи»</strong><p>Это дата первого попадания сделки на этап «Клиент записан», а не дата будущего визита. Если переход не зафиксирован, в строке будет показано «Дата не зафиксирована».</p></div>
+    </aside>
+  </main>
+
+  <footer><span>Данные обновляются из amoCRM каждый час</span><span>Таблица доступна только после авторизации</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

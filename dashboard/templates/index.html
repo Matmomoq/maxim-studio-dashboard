@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Управленческая аналитика · amoCRM</title>
+  <meta name="description" content="Дашборд лидов, записей, офферов и рекламных источников по филиалам">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body data-min-date="{{ min_date }}" data-today="{{ today }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand">
+        <span><strong>Управленческая аналитика</strong><small>amoCRM · лиды и записи</small></span>
+      </div>
+      {% set current_nav = 'analytics' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-cluster">
+        <div class="sync-status" id="syncStatus">
+          <span class="status-dot"></span>
+          <span>Получаем свежие данные…</span>
+        </div>
+        <div class="exclusion-info">
+          <button type="button" aria-label="Какие сделки исключены из расчёта" aria-describedby="exclusionTooltip">i</button>
+          <div class="exclusion-tooltip" id="exclusionTooltip" role="tooltip">
+            <strong>Не учитываются в расчёте</strong>
+            <span>Закрытые сделки с причинами: «Другой город», «Дубль», «Спам / не лид» и «Тест».</span>
+          </div>
+        </div>
+      </div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="filter-panel" aria-labelledby="filtersTitle">
+      <div class="filter-heading">
+        <div>
+          <p class="section-kicker">Параметры отчёта</p>
+          <h1 id="filtersTitle">Фильтры</h1>
+        </div>
+        <button class="reset-button" id="resetFilters" type="button">Сбросить фильтры</button>
+      </div>
+
+      <div class="filter-grid">
+        <label>Дата с
+          <input id="dateFrom" type="date" min="{{ min_date }}">
+        </label>
+        <label>Дата по
+          <input id="dateTo" type="date" min="{{ min_date }}">
+        </label>
+        <div class="filter-control">
+          <span class="filter-label">Филиал</span>
+          <div class="multi-select" data-multi-filter="branch" data-all-label="Все филиалы">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все филиалы</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все филиалы</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-control">
+          <span class="filter-label">Источник</span>
+          <div class="multi-select" data-multi-filter="source" data-all-label="Все источники">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все источники</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все источники</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-control">
+          <span class="filter-label">Направление</span>
+          <div class="multi-select" data-multi-filter="direction" data-all-label="Все направления">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все направления</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все направления</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-control">
+          <span class="filter-label">Оффер</span>
+          <div class="multi-select" data-multi-filter="offer" data-all-label="Все офферы">
+            <button class="multi-trigger" type="button" aria-expanded="false"><span>Все офферы</span><i>⌄</i></button>
+            <div class="multi-menu" hidden>
+              <label class="multi-option select-all"><input type="checkbox" value="Все" checked><span>Все офферы</span></label>
+              <div class="multi-options"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preset-row" aria-label="Быстрый выбор периода">
+        <span>Быстрый период</span>
+        <button type="button" data-preset="today">Сегодня</button>
+        <button type="button" data-preset="week">Неделя</button>
+        <button type="button" data-preset="month" class="active">Месяц</button>
+        <button type="button" data-preset="quarter">Квартал</button>
+      </div>
+    </section>
+
+    <div class="error-banner" id="errorBanner" role="alert" hidden></div>
+    <div class="loading-line" id="loadingLine" aria-hidden="true"></div>
+
+    <section class="economics-heading" aria-label="Полнота расходов">
+      <div>
+        <p class="section-kicker">Расходы и результат</p>
+        <h2>Эффективность рекламы</h2>
+      </div>
+      <div class="coverage-tools">
+        <span class="coverage-badge" id="coverageBadge" data-status="loading">Проверяем расходы…</span>
+        <label class="draft-toggle" title="Показывать неподтверждённые расходы">
+          <input id="includeDrafts" type="checkbox">
+          <span>Учитывать черновики</span>
+        </label>
+        <a href="{{ url_for('expenses_page') }}">Заполнить расходы</a>
+      </div>
+    </section>
+
+    <section class="kpi-grid" aria-label="Главные показатели">
+      <article class="kpi-card dark">
+        <span class="kpi-label">Расход на рекламу</span>
+        <strong id="kpiSpend">—</strong>
+        <small>По заполненным источникам</small>
+      </article>
+      <article class="kpi-card primary">
+        <span class="kpi-label">Лиды</span>
+        <strong id="kpiLeads">—</strong>
+        <small>Новые сделки за период</small>
+      </article>
+      <article class="kpi-card coral">
+        <span class="kpi-label">Записи</span>
+        <strong id="kpiBookings">—</strong>
+        <small>Лиды, дошедшие до записи</small>
+      </article>
+      <article class="kpi-card lime">
+        <span class="kpi-label">Конверсия</span>
+        <strong id="kpiConversion">—</strong>
+        <small>Записи ÷ лиды</small>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Стоимость лида</span>
+        <strong id="kpiCpl">—</strong>
+        <small>Расход ÷ лиды</small>
+      </article>
+      <article class="kpi-card">
+        <span class="kpi-label">Стоимость записи</span>
+        <strong id="kpiCostBooking">—</strong>
+        <small>Расход ÷ записи</small>
+      </article>
+    </section>
+
+    <section class="charts-grid">
+      <article class="panel source-volume-panel">
+        <div class="panel-heading">
+          <div><p class="section-kicker">Объём по каналам</p><h2>Какие источники приводят лидов</h2></div>
+          <div class="legend"><span class="lead-key"></span>Лиды <span class="book-key"></span>Записи</div>
+        </div>
+        <div class="horizontal-chart" id="sourceVolumeChart"></div>
+        <div class="empty-state" id="sourceVolumeEmpty" hidden>По выбранным условиям источники не определены</div>
+      </article>
+
+      <article class="panel source-panel">
+        <div class="panel-heading">
+          <div><p class="section-kicker">Экономика каналов</p><h2>Стоимость результата</h2></div>
+          <div class="metric-switch" aria-label="Показатель графика">
+            <button type="button" data-source-metric="cost_per_booking">Цена записи</button>
+            <button type="button" data-source-metric="cpl">Цена лида</button>
+            <button type="button" data-source-metric="spend">Расход</button>
+            <button type="button" data-source-metric="conversion" class="active">Конверсия</button>
+          </div>
+        </div>
+        <div class="horizontal-chart economics-chart" id="sourcesChart"></div>
+        <div class="empty-state" id="sourcesEmpty" hidden>Для этого среза ещё нет данных о расходах</div>
+      </article>
+    </section>
+
+    <section class="panel economics-panel">
+      <div class="panel-heading economics-panel-heading">
+        <div><p class="section-kicker">Сравнение</p><h2>Расходы и результат</h2></div>
+        <div class="group-switch" aria-label="Группировка таблицы">
+          <button type="button" data-marketing-group="source" class="active">По источникам</button>
+          <button type="button" data-marketing-group="branch">По филиалам</button>
+          <button type="button" data-marketing-group="direction">По направлениям</button>
+        </div>
+      </div>
+      <p class="economics-note" id="economicsNote">Нажмите на стрелку рядом с источником, чтобы увидеть его филиалы. Значение «—» означает, что расход ещё не заполнен.</p>
+      <div class="table-wrap economics-table-wrap">
+        <table class="economics-table">
+          <thead>
+            <tr>
+              <th><button data-marketing-sort="label"><span id="marketingGroupLabel">Источник</span> <i>↕</i></button></th>
+              <th><button data-marketing-sort="spend">Расход <i>↓</i></button></th>
+              <th><button data-marketing-sort="leads">Лиды <i>↕</i></button></th>
+              <th><button data-marketing-sort="bookings">Записи <i>↕</i></button></th>
+              <th><button data-marketing-sort="conversion">Конверсия <i>↕</i></button></th>
+              <th><button data-marketing-sort="cpl">Цена лида <i>↕</i></button></th>
+              <th><button data-marketing-sort="cost_per_booking">Цена записи <i>↕</i></button></th>
+            </tr>
+          </thead>
+          <tbody id="economicsBody"></tbody>
+          <tfoot id="economicsTotal"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel offer-panel">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Спрос по предложениям</p><h2>Какие офферы приводят лидов</h2></div>
+        <div class="offer-insights">
+          <span><small>Больше всего лидов</small><strong id="topOfferLeads">—</strong></span>
+          <span><small>Лучшая конверсия</small><strong id="topOfferConversion">—</strong></span>
+        </div>
+      </div>
+      <div class="horizontal-chart" id="offersChart"></div>
+      <div class="empty-state" id="offersEmpty" hidden>По выбранным условиям офферы не определены</div>
+    </section>
+
+    <section class="panel branch-panel">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Филиалы</p><h2>Где лиды лучше превращаются в записи</h2></div>
+        <span class="table-note">Нажмите на название столбца для сортировки</span>
+      </div>
+      <div class="table-wrap">
+        <table class="branch-table">
+          <thead>
+            <tr>
+              <th><button data-branch-sort="branch">Филиал <span>↕</span></button></th>
+              <th><button data-branch-sort="leads">Лиды <span>↓</span></button></th>
+              <th><button data-branch-sort="bookings">Записи <span>↕</span></button></th>
+              <th><button data-branch-sort="conversion">Конверсия <span>↕</span></button></th>
+            </tr>
+          </thead>
+          <tbody id="branchesBody"></tbody>
+          <tfoot id="branchesTotal"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <aside class="method-note">
+      <span class="method-icon">i</span>
+      <div><strong>Как считаем запись</strong><p>Лид считается записанным, если у сделки есть ID записи YCLIENTS, дата перехода в запись или подтверждённый переход на этап записи. Один лид учитывается только один раз.</p></div>
+    </aside>
+
+    <section class="panel trend-panel" id="trendPanel" aria-labelledby="trendTitle">
+      <div class="panel-heading trend-heading">
+        <div>
+          <p class="section-kicker">Изменение во времени</p>
+          <h2 id="trendTitle">Динамика показателей</h2>
+        </div>
+        <span class="metric-badge" id="trendPeriodLabel">Выбранный период</span>
+      </div>
+
+      <div class="trend-controls">
+        <div class="trend-control-group">
+          <span>Показатель</span>
+          <div class="metric-switch trend-metric-switch">
+            <button type="button" data-trend-metric="leads_bookings" class="active">Лиды и записи</button>
+            <button type="button" data-trend-metric="conversion">Конверсия</button>
+            <button type="button" data-trend-metric="spend">Расход</button>
+            <button type="button" data-trend-metric="cpl">Цена лида</button>
+            <button type="button" data-trend-metric="cost_per_booking">Цена записи</button>
+          </div>
+        </div>
+        <div class="trend-control-group">
+          <span>Периоды</span>
+          <div class="metric-switch trend-period-switch">
+            <button type="button" data-trend-granularity="day" class="active">Дни</button>
+            <button type="button" data-trend-granularity="week">Недели</button>
+            <button type="button" data-trend-granularity="month">Месяцы</button>
+          </div>
+        </div>
+        <label class="trend-breakdown">Разбить по
+          <select id="trendBreakdown">
+            <option value="none">Без разбивки</option>
+            <option value="source">Источникам</option>
+            <option value="branch">Филиалам</option>
+            <option value="direction">Направлениям</option>
+          </select>
+        </label>
+        <label class="draft-toggle trend-compare" title="Показать предыдущий период пунктиром">
+          <input id="trendCompare" type="checkbox">
+          <span>Сравнить с предыдущим периодом</span>
+        </label>
+      </div>
+
+      <div class="trend-summary" id="trendSummary">
+        <span><small>Лиды</small><strong id="trendSummaryLeads">—</strong></span>
+        <span><small>Записи</small><strong id="trendSummaryBookings">—</strong></span>
+        <span><small>Конверсия</small><strong id="trendSummaryConversion">—</strong></span>
+        <span><small>Расход</small><strong id="trendSummarySpend">—</strong></span>
+      </div>
+
+      <div class="trend-chart-shell" id="trendChartShell">
+        <svg id="trendChart" viewBox="0 0 1080 390" role="img" aria-label="График динамики показателей"></svg>
+      </div>
+      <div class="trend-legend" id="trendLegend"></div>
+      <div class="empty-state" id="trendEmpty" hidden>За выбранный период данных для графика нет</div>
+      <p class="trend-note" id="trendNote">Лиды объединены по дате создания сделки. Записи относятся к периоду создания соответствующего лида.</p>
+    </section>
+  </main>
+
+  <footer><span>Данные обновляются из amoCRM каждый час</span><span>Аналитика без персональных данных клиентов</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>

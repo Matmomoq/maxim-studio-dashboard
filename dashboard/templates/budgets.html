@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#132824">
+  <title>Планирование бюджета · amoCRM</title>
+  <meta name="description" content="План, фактический расход и остаток маркетингового бюджета">
+  <style>{{ inline_css | safe }}</style>
+</head>
+<body class="budgets-page" data-min-date="{{ min_date }}" data-today="{{ today }}" data-csrf-token="{{ budget_csrf }}">
+  <header class="topbar">
+    <div class="topbar-main">
+      <div class="brand">
+        <span><strong>Управленческая аналитика</strong><small>amoCRM · лиды и записи</small></span>
+      </div>
+      {% set current_nav = 'budgets' %}
+      {% include '_topnav.html' %}
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status" id="syncStatus"><span class="status-dot"></span><span>Получаем свежие данные…</span></div>
+      <form class="logout-form" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf }}">
+        <button type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="budgets-main">
+    <section class="filter-panel budget-heading">
+      <div>
+        <p class="section-kicker">План и факт</p>
+        <h1>Планирование бюджета</h1>
+        <p>Сравнивайте запланированный бюджет с фактическими расходами по каждому источнику, филиалу и направлению.</p>
+      </div>
+    </section>
+
+    <section class="filter-panel budget-filters" aria-labelledby="budgetFiltersTitle">
+      <div class="filter-heading">
+        <div><p class="section-kicker">Период и срез</p><h2 id="budgetFiltersTitle">Фильтры</h2></div>
+        <button class="reset-button" id="resetBudgetFilters" type="button">Сбросить фильтры</button>
+      </div>
+      <div class="budget-filter-grid">
+        <label>Месяц отображения
+          <input id="budgetViewMonth" type="month" min="2026-07">
+        </label>
+        <label>Источник
+          <select id="budgetFilterSource"><option value="Все">Все источники</option></select>
+        </label>
+        <label>Филиал
+          <select id="budgetFilterBranch"><option value="Все">Все филиалы</option></select>
+        </label>
+        <label>Направление
+          <select id="budgetFilterDirection"><option value="Все">Все направления</option></select>
+        </label>
+      </div>
+    </section>
+
+    <div class="error-banner" id="budgetError" role="alert" hidden></div>
+    <div class="success-banner" id="budgetSuccess" role="status" hidden></div>
+    <div class="loading-line" id="budgetLoading" aria-hidden="true"></div>
+
+    <section class="panel budget-entry-panel" aria-labelledby="budgetEntryTitle">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Ввод плана</p><h2 id="budgetEntryTitle">Задать бюджет на месяц</h2></div>
+        <span class="metric-badge">По филиалу и направлению</span>
+      </div>
+      <p class="budget-help" id="budgetEntryHelp">Если сохранить ту же связку повторно, сумма бюджета обновится, а изменение останется в истории.</p>
+      <form class="expense-form budget-form" id="budgetForm">
+        <div class="budget-form-grid">
+          <label>Источник
+            <select name="source" required></select>
+          </label>
+          <label>Филиал
+            <select name="branch" required></select>
+          </label>
+          <label>Направление
+            <select name="direction" required></select>
+          </label>
+          <label>Месяц бюджета
+            <input name="budget_month" type="month" min="2026-07" required>
+          </label>
+          <label>Бюджет, ₽
+            <input name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+          </label>
+          <div class="budget-form-actions">
+            <button class="secondary-action" id="budgetCancelEdit" type="button" hidden>Отменить</button>
+            <button class="primary-action" id="budgetSubmitButton" type="submit">Сохранить бюджет</button>
+          </div>
+        </div>
+      </form>
+      <details class="budget-history-tray" id="budgetHistoryTray">
+        <summary>
+          <span>Внесённые бюджеты</span>
+          <small id="budgetHistoryCount">0 записей</small>
+        </summary>
+        <div class="budget-history-tray-content" aria-labelledby="budgetHistoryTitle">
+          <div class="budget-history-heading">
+            <div><p class="section-kicker">История внесения</p><h3 id="budgetHistoryTitle">Ранее внесённые бюджеты</h3></div>
+            <p class="budget-help">Исправьте запись карандашом или удалите корзиной. Все изменения и удаления сохраняются в журнале аудита.</p>
+          </div>
+          <div class="table-wrap budget-history-wrap">
+            <table class="expense-table budget-history-table">
+              <thead><tr><th>Источник</th><th>Филиал</th><th>Направление</th><th>Месяц</th><th>Бюджет</th><th>Изменено</th><th>Действия</th></tr></thead>
+              <tbody id="budgetHistoryRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel budget-table-panel" aria-labelledby="budgetTableTitle">
+      <div class="panel-heading">
+        <div><p class="section-kicker">Контроль бюджета</p><h2 id="budgetTableTitle">Бюджет, расход и остаток</h2></div>
+        <span class="table-note" id="budgetMonthLabel">Выбранный месяц</span>
+      </div>
+
+      <div class="budget-kpi-grid">
+        <article><span>Запланировано</span><strong id="budgetTotalPlan">0 ₽</strong></article>
+        <article><span>Израсходовано</span><strong id="budgetTotalSpent">0 ₽</strong></article>
+        <article><span>Осталось</span><strong id="budgetTotalRemaining">0 ₽</strong></article>
+      </div>
+
+      <div class="table-wrap budget-table-wrap">
+        <table class="expense-table budget-table">
+          <thead><tr><th>Источник + филиал + направление</th><th>Бюджет</th><th>Израсходовано</th><th>Остаток</th></tr></thead>
+          <tbody id="budgetRows"></tbody>
+          <tfoot><tr><th>ИТОГО</th><th id="budgetFootPlan">0 ₽</th><th id="budgetFootSpent">0 ₽</th><th id="budgetFootRemaining">0 ₽</th></tr></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <aside class="method-note budget-note">
+      <span class="method-icon">i</span>
+      <div><strong>Как считается фактический расход</strong><p>VK — подтверждённые расходы за выбранный месяц. РИС, РИС_xs и Флоктори — количество лидов конкретного филиала и направления, умноженное на действовавшую цену лида. Для РИС_xs доступны только массаж и филиалы Академическая, Невский и Комендантский. Яндекс.Карты, Сайт Xsize и SMM_xs в планирование не входят.</p></div>
+    </aside>
+  </main>
+
+  <footer><span>Бюджеты хранятся по месяцам</span><span>Все изменения сохраняются в истории</span></footer>
+  <script nonce="{{ csp_nonce }}">{{ inline_js | safe }}</script>
+</body>
+</html>
